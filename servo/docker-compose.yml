@@ -1,0 +1,26 @@
+services:
+  symphony:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: servo-symphony
+    env_file:
+      - ../../.env
+    environment:
+      # Git auth via token (used by git clone https://...)
+      - GIT_ASKPASS=/app/git-askpass.sh
+      # Override Linear project slug (optional — defaults to WORKFLOW.md value)
+      - SYMPHONY_PROJECT_SLUG=${SYMPHONY_PROJECT_SLUG:-}
+    volumes:
+      # Persist workspaces across restarts
+      - symphony_workspaces:/workspaces
+      # Persist logs
+      - symphony_logs:/app/log
+      # Persist Codex auth (OAuth tokens) across restarts
+      - symphony_codex:/root/.codex
+    restart: unless-stopped
+
+volumes:
+  symphony_workspaces:
+  symphony_logs:
+  symphony_codex:

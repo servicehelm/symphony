@@ -49,7 +49,8 @@ Then tell the user:
 ## Step 4: Linear Workflow States
 
 Their Linear team needs these custom states (Team Settings > Workflow). They may already exist:
-- **Human Review** (type: Started, after In Progress)
+- **QA Review** (type: Started, after In Progress) — automated review agent validates the PR
+- **Human Review** (type: Started, after QA Review) — human reviews after QA passes
 - **Merging** (type: Started, after Human Review)
 - **Rework** (type: Started, loops back)
 
@@ -58,27 +59,32 @@ If the states already exist for their team, no action needed.
 ## Step 5: Build and Start
 
 ```bash
-cd agents/symphony
+cd servo
 docker compose up --build -d
 ```
 
+This starts two agents:
+- **symphony** — coding agent (picks up Todo/In Progress/Merging/Rework)
+- **review** — QA review agent (picks up QA Review, validates PRs with tests + E2E)
+
 ## Step 6: Codex Authentication (ChatGPT Subscription)
 
-The container will show a message saying auth is needed. Run the device auth command:
+Both containers need auth. Run device auth for each:
 
 ```bash
 docker exec -it servo-symphony codex login --device-auth
+docker exec -it servo-symphony-review codex login --device-auth
 ```
 
-This outputs a URL and code. Open the URL in the user's browser using `mcp__claude-in-chrome__navigate`, and tell them to enter the code and authorize with their ChatGPT account.
+Each outputs a URL and code. Open the URLs in the user's browser using `mcp__claude-in-chrome__navigate`, and tell them to enter the code and authorize with their ChatGPT account.
 
-Then restart:
+Then restart both:
 
 ```bash
-cd agents/symphony && docker compose restart symphony
+cd servo && docker compose restart
 ```
 
-Codex uses their existing ChatGPT subscription — no extra API costs. OAuth tokens persist in a Docker volume, so they only do this once.
+Codex uses their existing ChatGPT subscription — no extra API costs. OAuth tokens persist in Docker volumes, so they only do this once per container.
 
 > **Alternative (not recommended)**: If they specifically want pay-per-use API billing instead of their subscription, they can add `OPENAI_API_KEY=sk-xxxxx` to `.env` and auth happens automatically.
 

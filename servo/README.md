@@ -43,7 +43,8 @@ Codex uses your **ChatGPT subscription** by default (no extra cost). If you need
 ### 3. Linear Workflow States
 
 Your Linear team needs these custom states (Team Settings > Workflow):
-- **Human Review** (after In Progress)
+- **QA Review** (after In Progress) — review agent validates the PR automatically
+- **Human Review** (after QA Review) — you review after QA passes
 - **Merging** (after Human Review)
 - **Rework** (loops back to In Progress)
 
@@ -79,12 +80,23 @@ You should see it polling Linear every 10 seconds. Create a test Todo issue to v
 
 ## How It Works
 
-1. Polls Linear every 10s for Todo/In Progress/Merging/Rework tasks
-2. Claims a task, creates isolated workspace, clones backend + frontend + mobile
-3. Codex agent reads the task, plans, implements, tests, opens PR(s)
-4. Moves task to **Human Review** — you review the PR
-5. Approve and move to **Merging** — agent merges, moves to Done
-6. Request changes and move to **Rework** — agent re-implements
+Two independent agents work in sequence:
+
+```
+Coding Agent                    Review Agent
+────────────                    ────────────
+Todo → In Progress → PR done    QA Review → validate PR
+                   ↓                      ↓
+              QA Review              Pass → Human Review
+                                     Fail → Rework (with fixes or feedback)
+```
+
+1. **Coding agent** polls Linear, claims a Todo task, implements it, opens PR(s)
+2. Moves task to **QA Review** — the review agent picks it up
+3. **Review agent** independently validates: builds, tests, lints, runs Playwright E2E, code reviews the diff
+4. If QA passes → moves to **Human Review** (you review the PR)
+5. If QA finds problems → attempts to fix them. If it can't → moves to **Rework**
+6. You approve → move to **Merging** → coding agent merges → Done
 
 ## Configuration
 
@@ -100,15 +112,16 @@ Edit `WORKFLOW.md` to adjust:
 ## Logs
 
 ```bash
-docker compose logs -f symphony          # Live logs
-docker volume inspect symphony_logs      # Log volume location
+docker compose logs -f symphony          # Coding agent logs
+docker compose logs -f review            # Review agent logs
 ```
 
 ## Troubleshooting
 
 | Problem | Fix |
 |---------|-----|
-| "No Codex auth found" | Complete step 5 (API key or device auth) |
+| "No Codex auth found" | Complete step 5 for both containers |
 | Agent can't push to GitHub | Verify GITHUB_TOKEN has `repo` scope |
 | Agent doesn't pick up issues | Check LINEAR_API_KEY and SYMPHONY_PROJECT_SLUG |
-| Container exits immediately | `docker compose logs symphony` for errors |
+| Container exits immediately | `docker compose logs symphony` or `docker compose logs review` |
+| Review agent E2E fails | Check that Go and pnpm deps installed correctly in review container |

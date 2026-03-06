@@ -132,9 +132,10 @@ This workspace contains three repos:
 - `Backlog` → out of scope; do not modify.
 - `Todo` → queued; immediately transition to `In Progress` before active work.
 - `In Progress` → implementation actively underway.
-- `Human Review` → PR is attached and validated; waiting on human approval.
+- `QA Review` → automated review agent validates the PR (tests, lint, E2E).
+- `Human Review` → PR passed QA; waiting on human approval.
 - `Merging` → approved by human; merge the PR.
-- `Rework` → reviewer requested changes; re-implement.
+- `Rework` → reviewer or QA agent found problems; re-implement.
 - `Done` → terminal state; no further action required.
 
 ## Step 0: Determine current ticket state and route
@@ -145,6 +146,7 @@ This workspace contains three repos:
    - `Backlog` → do not modify; stop.
    - `Todo` → move to `In Progress`, create workpad comment, start execution.
    - `In Progress` → continue execution from current workpad.
+   - `QA Review` → do nothing; the review agent handles this state.
    - `Human Review` → wait and poll for review updates.
    - `Merging` → merge the PR, move to `Done`.
    - `Rework` → close existing PR, fresh branch from main, restart.
@@ -161,7 +163,7 @@ This workspace contains three repos:
 7. Create branch `symphony/{{ issue.identifier }}`, commit, push.
 8. Open PR(s) with `gh pr create`, add `symphony` label.
 9. Link PR to the Linear issue.
-10. Move issue to `Human Review`.
+10. Move issue to `QA Review`.
 
 ## Step 2: Rework handling
 

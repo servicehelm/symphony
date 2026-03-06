@@ -1,0 +1,84 @@
+# Symphony Review Agent for Servo
+# Includes Go, pnpm, and Playwright deps for full E2E validation
+#
+# Build: docker compose build review
+# Run:   docker compose up review
+
+# Stage 1: Build the Symphony escript
+FROM hexpm/elixir:1.19-erlang-26.2.5.4-debian-bookworm-20260223 AS builder
+
+RUN apt-get update && apt-get install -y git make && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+RUN git clone --depth 1 https://github.com/openai/symphony /build/symphony
+
+WORKDIR /build/symphony/elixir
+RUN mix local.hex --force && mix local.rebar --force
+RUN mix setup
+RUN mix build
+
+# Stage 2: Runtime — needs Go, Node, pnpm, Playwright for validation
+FROM hexpm/elixir:1.19-erlang-26.2.5.4-debian-bookworm-20260223
+
+RUN apt-get update && apt-get install -y \
+  curl \
+  git \
+  openssh-client \
+  ca-certificates \
+  gnupg \
+  make \
+  gcc \
+  libc6-dev \
+  && rm -rf /var/lib/apt/lists/*
+
+# Install Go (for backend build/test)
+RUN curl -fsSL https://go.dev/dl/go1.24.1.linux-amd64.tar.gz | tar -C /usr/local -xzf -
+ENV PATH="/usr/local/go/bin:${PATH}"
+ENV GOPATH="/root/go"
+ENV PATH="${GOPATH}/bin:${PATH}"
+
+# Install Node.js 22 (for Codex CLI + frontend)
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+  && apt-get install -y nodejs \
+  && rm -rf /var/lib/apt/lists/*
+
+# Install pnpm (for frontend)
+RUN npm install -g pnpm
+
+# Install OpenAI Codex CLI
+RUN npm install -g @openai/codex
+
+# Install GitHub CLI (for PR operations)
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | gpg --dearmor -o /usr/share/keyrings/githubcli.gpg \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list \
+  && apt-get update && apt-get install -y gh && rm -rf /var/lib/apt/lists/*
+
+# Install Playwright system dependencies (for E2E tests)
+RUN npx playwright install-deps chromium 2>/dev/null || true
+
+WORKDIR /app
+
+# Copy built Symphony escript from builder
+COPY --from=builder /build/symphony/elixir/bin/symphony /app/bin/symphony
+
+# Copy review workflow config
+COPY WORKFLOW-review.md /app/WORKFLOW.md
+COPY git-askpass.sh /app/git-askpass.sh
+RUN sed -i 's/\r$//' /app/git-askpass.sh && chmod +x /app/git-askpass.sh
+
+# Git config for the review agent
+RUN git config --global user.name "Symphony Review Agent" \
+  && git config --global user.email "symphony-review@servohq.com" \
+  && git config --global init.defaultBranch main
+
+# Codex config
+RUN mkdir -p /root/.codex && echo 'model = "gpt-5.4-2026-03-05"' > /root/.codex/config.toml
+
+# Entrypoint (shared with coding agent)
+COPY codex-entrypoint.sh /app/codex-entrypoint.sh
+RUN sed -i 's/\r$//' /app/codex-entrypoint.sh && chmod +x /app/codex-entrypoint.sh
+
+# Workspace and log directories
+RUN mkdir -p /workspaces-review /app/log
+
+ENTRYPOINT ["/app/codex-entrypoint.sh"]

@@ -7,7 +7,8 @@ Autonomous coding agent that watches your Linear project for tasks and implement
 The fastest way to get set up:
 
 ```
-cd agents/symphony
+git clone https://github.com/servicehelm/symphony.git
+cd symphony && git checkout servo && cd servo
 ```
 
 Then tell Claude: **"Set up Symphony for me"**
@@ -25,7 +26,7 @@ Claude will walk you through gathering your keys and getting everything running.
 
 ### 2. Add to `.env`
 
-Add to the root `.env` file:
+Create a `.env` file in the `servo/` directory:
 
 ```bash
 LINEAR_API_KEY=lin_api_xxxxx
@@ -49,7 +50,8 @@ Your Linear team needs these custom states (Team Settings > Workflow):
 ### 4. Build and Run
 
 ```bash
-cd agents/symphony
+git clone https://github.com/servicehelm/symphony.git
+cd symphony && git checkout servo && cd servo
 docker compose up --build -d
 ```
 

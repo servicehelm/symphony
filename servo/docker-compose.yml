@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: servo-symphony
     env_file:
-      - ../../.env
+      - .env
     environment:
       # Git auth via token (used by git clone https://...)
       - GIT_ASKPASS=/app/git-askpass.sh

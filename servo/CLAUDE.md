@@ -5,7 +5,7 @@ When a user asks you to set up Symphony, follow these steps exactly. Be proactiv
 ## Prerequisites Check
 
 1. Confirm Docker is installed: `docker --version`
-2. Confirm they're in the backend repo root (or navigate there)
+2. Confirm they're in the symphony repo root (clone from https://github.com/servicehelm/symphony, checkout the `servo` branch)
 
 ## Step 1: Get Linear API Key
 
@@ -33,7 +33,7 @@ Wait for them to paste the token.
 
 ## Step 3: Add to .env
 
-Add these lines to the root `.env` file (create if missing, but it should exist):
+Create a `.env` file in the `servo/` directory:
 
 ```
 LINEAR_API_KEY=<their key>

@@ -19,17 +19,14 @@ workspace:
   root: /workspaces
 hooks:
   after_create: |
-    # Clone all Servo repos into workspace subdirectories
     git clone --depth 1 https://${GITHUB_TOKEN}@github.com/servicehelm/backend.git backend
     git clone --depth 1 https://${GITHUB_TOKEN}@github.com/servicehelm/frontend.git frontend
     git clone --depth 1 https://${GITHUB_TOKEN}@github.com/servicehelm/mobile.git mobile
 
-    # Set up git auth for pushing
     cd backend && git remote set-url origin https://${GITHUB_TOKEN}@github.com/servicehelm/backend.git && cd ..
     cd frontend && git remote set-url origin https://${GITHUB_TOKEN}@github.com/servicehelm/frontend.git && cd ..
     cd mobile && git remote set-url origin https://${GITHUB_TOKEN}@github.com/servicehelm/mobile.git && cd ..
   before_run: |
-    # Sync all repos with latest main before each run
     cd backend && git pull origin main && cd ..
     cd frontend && git pull origin main && cd ..
     cd mobile && git pull origin main && cd ..
@@ -74,21 +71,32 @@ Description:
 No description provided.
 {% endif %}
 
+## Instructions
+
+1. Work only in the provided repository copies. Do not touch any other path.
+2. If blocked by missing tools/auth/permissions, use the blocked-access escape hatch — do NOT spin burning tokens.
+3. Final message must report completed actions and blockers only. Do not include "next steps for user".
+4. Operate autonomously end-to-end unless blocked by missing requirements, secrets, or permissions.
+
 ## Servo Platform Context
 
 You are working on Servo, an AI-native ERP platform for field service companies (landscaping, janitorial).
 
 This workspace contains three repos:
 - `backend/` — Go backend (Fiber HTTP framework, PostgreSQL, raw SQL queries)
-- `frontend/` — TypeScript frontend
+- `frontend/` — TypeScript frontend (Next.js)
 - `mobile/` — Mobile app
 
-## Critical Rules
+## Default Posture
 
-1. This is an unattended orchestration session. Never ask a human to perform follow-up actions.
-2. Only stop early for a true blocker (missing required auth/permissions/secrets). If blocked, record it in the workpad and move the issue according to workflow.
-3. Final message must report completed actions and blockers only. Do not include "next steps for user".
-4. Work only in the provided repository copies. Do not touch any other path.
+- Start by determining the ticket's current status, then follow the matching flow.
+- Start every task by opening the tracking workpad comment and bringing it up to date.
+- Spend extra effort up front on planning and verification design before implementation.
+- Reproduce first: confirm the current behavior/issue before changing code.
+- Keep ticket metadata current (state, checklist, acceptance criteria, links).
+- Use a single persistent workpad comment as the source of truth for progress.
+- When meaningful out-of-scope improvements are discovered, file a separate Linear issue in `Backlog` with the same project, a `related` link to the current issue, and `blockedBy` when the follow-up depends on this issue. Do not expand current scope.
+- Move status only when the matching quality bar is met.
 
 ## Multi-Repo Work
 
@@ -131,82 +139,161 @@ This workspace contains three repos:
 
 - `Backlog` → out of scope; do not modify.
 - `Todo` → queued; immediately transition to `In Progress` before active work.
+  - Special case: if a PR is already attached, treat as feedback/rework loop.
 - `In Progress` → implementation actively underway.
-- `QA Review` → automated review agent validates the PR (tests, lint, E2E).
-- `Human Review` → PR passed QA; waiting on human approval.
-- `Merging` → approved by human; merge the PR.
+- `QA Review` → automated review agent validates the PR. Do nothing; stop.
+- `Human Review` → PR is attached and validated; waiting on human approval.
+- `Merging` → approved by human; merge the PR, move to `Done`.
 - `Rework` → reviewer or QA agent found problems; re-implement.
 - `Done` → terminal state; no further action required.
 
 ## Step 0: Determine current ticket state and route
 
 1. Fetch the issue by explicit ticket ID.
-2. Read the current state.
+2. Read the current state and all comments (especially human comments).
 3. Route to the matching flow:
    - `Backlog` → do not modify; stop.
-   - `Todo` → move to `In Progress`, create workpad comment, start execution.
-   - `In Progress` → continue execution from current workpad.
-   - `QA Review` → do nothing; the review agent handles this state.
-   - `Human Review` → wait and poll for review updates.
-   - `Merging` → merge the PR, move to `Done`.
-   - `Rework` → close existing PR, fresh branch from main, restart.
-   - `Done` → do nothing and shut down.
+   - `Todo` → move to `In Progress`, ensure workpad exists, start execution (Step 1).
+     - If PR is already attached, start by reviewing all open PR comments.
+   - `In Progress` → continue execution from current workpad (Step 1).
+   - `QA Review` → do nothing; the review agent handles this. Stop.
+   - `Human Review` → poll for review updates (Step 3).
+   - `Merging` → merge the PR, move to `Done` (Step 3).
+   - `Rework` → run rework flow (Step 4).
+   - `Done` → do nothing; shut down.
+4. Check whether a PR already exists for the branch and whether it is closed.
+   - If closed/merged, create a fresh branch from `origin/main` and restart.
 
 ## Step 1: Start/continue execution
 
 1. Find or create a single persistent `## Codex Workpad` comment on the issue.
-2. Write a hierarchical plan with acceptance criteria and TODOs.
-3. Pull latest `origin/main` in affected repos before implementing.
-4. Implement against the plan, checking off items as completed.
-5. Run tests: `make test` in backend, appropriate test commands in frontend/mobile.
-6. Run `make lint` in backend before committing.
-7. Create branch `symphony/{{ issue.identifier }}`, commit, push.
-8. Open PR(s) with `gh pr create`, add `symphony` label.
-9. Link PR to the Linear issue.
-10. Move issue to `QA Review`.
+   - Search existing comments for `## Codex Workpad`. If found, reuse it.
+   - If not found, create one. Persist its ID and only update that comment.
+2. Immediately reconcile the workpad:
+   - Check off items that are already done.
+   - Expand/fix the plan for current scope.
+   - Ensure `Acceptance Criteria` and `Validation` are current.
+3. Add an environment stamp at the top: `symphony-agent:<abs-path>@<short-sha>`
+4. Write a hierarchical plan with acceptance criteria and TODOs.
+   - If the ticket has `Validation`, `Test Plan`, or `Testing` sections, copy them into the workpad as required checkboxes.
+5. Run a self-review of the plan and refine before implementing.
+6. Reproduce the current behavior first when applicable. Record the signal in Notes.
+7. Pull latest `origin/main` in affected repos before implementing.
+8. Implement against the plan, checking off items as completed.
+   - Update the workpad immediately after each meaningful milestone.
+   - Never leave completed work unchecked in the plan.
+9. Run tests: `make test` in backend, appropriate test commands in frontend/mobile.
+10. Run `make lint` in backend before committing.
+11. Create branch `symphony/{{ issue.identifier }}`, commit, push.
+12. Open PR(s) with `gh pr create`, add `symphony` label.
+13. Link PR to the Linear issue.
+14. Before moving to QA Review, verify the completion bar is met.
+15. Move issue to `QA Review`.
 
-## Step 2: Rework handling
+## Step 2: PR feedback sweep (required before handoff)
 
-1. Re-read the full issue body and all human comments.
-2. Close the existing PR.
-3. Remove the existing workpad comment.
-4. Create a fresh branch from `origin/main`.
-5. Start over from Step 1.
+When a ticket has an attached PR, run this before moving to `QA Review`:
+
+1. Gather feedback from all channels:
+   - Top-level PR comments (`gh pr view --comments`).
+   - Inline review comments (`gh api repos/servicehelm/<repo>/pulls/<pr>/comments`).
+   - Review summaries (`gh pr view --json reviews`).
+2. Treat every actionable reviewer comment as blocking until:
+   - Code/test/docs updated to address it, OR
+   - Explicit, justified pushback reply is posted on that thread.
+3. Update the workpad to include each feedback item and resolution.
+4. Re-run validation after feedback-driven changes and push updates.
+5. Repeat until no outstanding actionable comments remain.
+
+## Step 3: Human Review and merge handling
+
+1. When in `Human Review`, do not code or change ticket content. Poll for updates.
+2. If review feedback requires changes, follow rework flow (Step 4).
+3. If approved, human moves to `Merging`.
+4. When in `Merging`, merge the PR with `gh pr merge --merge`, then move to `Done`.
+
+## Step 4: Rework handling
+
+1. Treat `Rework` as a full approach reset, not incremental patching.
+2. Re-read the full issue body and all human comments. Identify what must change.
+3. Close the existing PR.
+4. Remove the existing `## Codex Workpad` comment.
+5. Create a fresh branch from `origin/main`.
+6. Start over from Step 1 with a new workpad and fresh plan.
+
+## Blocked-access escape hatch
+
+Use this ONLY when blocked by missing required tools, auth, or permissions that cannot be resolved in-session.
+
+- Do NOT spin retrying. If you've tried 2-3 approaches and are still blocked, use this.
+- GitHub access issues are NOT a valid blocker by default — try fallback strategies first.
+- When truly blocked:
+  1. Update the workpad with a `### Blocked` section containing:
+     - What is missing
+     - Why it blocks required work
+     - Exact human action needed to unblock
+  2. Move the issue to `Human Review` with the blocker documented.
+  3. Stop. Do not continue burning tokens.
+
+## Completion bar (required before QA Review)
+
+All of these must be true before moving to `QA Review`:
+
+- [ ] Workpad checklist is fully complete and accurate.
+- [ ] Acceptance criteria are met.
+- [ ] All ticket-provided validation/test-plan items are marked complete.
+- [ ] Tests pass for the latest commit.
+- [ ] Lint passes.
+- [ ] PR feedback sweep is complete — no actionable comments remain.
+- [ ] PR checks are green, branch is pushed, PR is linked on the issue.
+- [ ] PR has `symphony` label.
+- [ ] Workpad is up to date with final status.
 
 ## Guardrails
 
 - Never send emails to external addresses. Only `@servohq.com` team addresses.
 - The Aspire API is READ-ONLY. Never POST/PUT/PATCH/DELETE to `cloud-api.youraspire.com`.
-- Never use `fiber.Map` for responses.
+- Never use `fiber.Map` for responses — use typed structs.
 - Never use `go build -o` directly — use `make build`.
 - Never use bare `go test` — use `make test`.
 - Do not edit the issue body/description for planning.
 - Use exactly one persistent workpad comment per issue.
+- If branch PR is already closed/merged, do not reuse — create fresh branch from `origin/main`.
+- Temporary proof edits (for local verification) must be reverted before commit.
+- Do not move to `QA Review` unless the completion bar is satisfied.
+- In `Human Review`, do not make changes; wait and poll.
+- If state is terminal (`Done`), do nothing and shut down.
 
-## Workpad Template
+## Workpad template
 
 ````md
 ## Codex Workpad
 
 ```text
-symphony-agent:/workspaces/<issue-identifier>@<short-sha>
+symphony-agent:<abs-path>@<short-sha>
 ```
 
 ### Plan
 
 - [ ] 1. Parent task
   - [ ] 1.1 Child task
+  - [ ] 1.2 Child task
+- [ ] 2. Parent task
 
 ### Acceptance Criteria
 
 - [ ] Criterion 1
+- [ ] Criterion 2
 
 ### Validation
 
-- [ ] tests: `make test <pkg>`
-- [ ] lint: `make lint`
+- [ ] targeted tests: `<command>`
 
 ### Notes
 
-- <progress notes>
+- <short progress note>
+
+### Confusions
+
+- <only include when something was unclear during execution>
 ````

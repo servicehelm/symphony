@@ -23,11 +23,11 @@ hooks:
     git clone --depth 1 https://${GITHUB_TOKEN}@github.com/servicehelm/frontend.git frontend
     git clone --depth 1 https://${GITHUB_TOKEN}@github.com/servicehelm/mobile.git mobile
 
-    cd backend && git remote set-url origin https://${GITHUB_TOKEN}@github.com/servicehelm/backend.git && cd ..
+    cd backend && git remote set-url origin https://${GITHUB_TOKEN}@github.com/servicehelm/backend.git && git submodule update --init --depth 1 && cd ..
     cd frontend && git remote set-url origin https://${GITHUB_TOKEN}@github.com/servicehelm/frontend.git && cd ..
     cd mobile && git remote set-url origin https://${GITHUB_TOKEN}@github.com/servicehelm/mobile.git && cd ..
   before_run: |
-    cd backend && git pull origin main && cd ..
+    cd backend && git pull origin main && git submodule update --init --depth 1 && cd ..
     cd frontend && git pull origin main && cd ..
     cd mobile && git pull origin main && cd ..
 agent:

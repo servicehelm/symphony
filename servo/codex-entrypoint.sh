@@ -4,7 +4,7 @@ set -euo pipefail
 # ── Codex config ──────────────────────────────────────────────
 if [ ! -f /root/.codex/config.toml ]; then
   mkdir -p /root/.codex
-  echo 'model = "gpt-5.4-2026-03-05"' > /root/.codex/config.toml
+  echo 'model = "gpt-5.4"' > /root/.codex/config.toml
 fi
 
 # ── Template WORKFLOW.md with env vars ────────────────────────
@@ -14,15 +14,10 @@ if [ -n "${SYMPHONY_PROJECT_SLUG:-}" ]; then
   echo "[entrypoint] Project slug set to: ${SYMPHONY_PROJECT_SLUG}"
 fi
 
-# ── Codex auth (OAuth only — no API keys) ─────────────────────
-# Reject API key auth to prevent accidental quota billing
-if [ -n "${OPENAI_API_KEY:-}" ]; then
-  echo "[entrypoint] WARNING: OPENAI_API_KEY is set but API key auth is disabled."
-  echo "[entrypoint] Remove OPENAI_API_KEY from .env and use device-auth instead."
-fi
-
-# Require OAuth device auth (ChatGPT subscription)
-if [ ! -f /root/.codex/auth.json ]; then
+# ── Codex auth (OAuth / ChatGPT subscription only) ─────────────
+if [ -f /root/.codex/auth.json ]; then
+  echo "[entrypoint] Using OAuth auth."
+else
   echo ""
   echo "╔══════════════════════════════════════════════════════════╗"
   echo "║  Sign in with your ChatGPT subscription:                ║"
@@ -35,7 +30,6 @@ if [ ! -f /root/.codex/auth.json ]; then
   echo "║    docker compose restart symphony                      ║"
   echo "╚══════════════════════════════════════════════════════════╝"
   echo ""
-  # Sleep so container stays up for the login command
   sleep 3600
   exit 1
 fi

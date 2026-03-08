@@ -9,6 +9,7 @@ defmodule SymphonyElixir.Codex.AppServer do
   @initialize_id 1
   @thread_start_id 2
   @turn_start_id 3
+  @steer_base_id 1000
   @port_line_bytes 1_048_576
   @max_stream_log_bytes 1_000
   @non_interactive_tool_input_answer "This is a non-interactive session. Operator input is unavailable."
@@ -134,6 +135,34 @@ defmodule SymphonyElixir.Codex.AppServer do
         emit_message(on_message, :startup_failed, %{reason: reason}, metadata)
         {:error, reason}
     end
+  end
+
+  @doc """
+  Injects a user message into an active turn via `turn/steer`.
+
+  This is fire-and-forget: it writes the JSON-RPC message to the port's stdin.
+  The response will be consumed by the existing receive loop in `await_turn_completion`.
+  Must be called from the same process that owns the port.
+  """
+  @spec steer_turn(session(), String.t(), non_neg_integer()) :: :ok
+  def steer_turn(%{port: port, thread_id: thread_id}, message, steer_id \\ 0) do
+    id = @steer_base_id + steer_id
+
+    send_message(port, %{
+      "method" => "turn/steer",
+      "id" => id,
+      "params" => %{
+        "threadId" => thread_id,
+        "input" => [
+          %{
+            "type" => "text",
+            "text" => message
+          }
+        ]
+      }
+    })
+
+    :ok
   end
 
   @spec stop_session(session()) :: :ok
@@ -295,6 +324,25 @@ defmodule SymphonyElixir.Codex.AppServer do
           tool_executor,
           auto_approve_requests
         )
+
+      {:steer, message, steer_id} ->
+        Logger.info("Injecting steer message into active turn: #{String.slice(message, 0, 100)}")
+        id = @steer_base_id + steer_id
+
+        send_message(port, %{
+          "method" => "turn/steer",
+          "id" => id,
+          "params" => %{
+            "input" => [
+              %{
+                "type" => "text",
+                "text" => message
+              }
+            ]
+          }
+        })
+
+        receive_loop(port, on_message, timeout_ms, pending_line, tool_executor, auto_approve_requests)
 
       {^port, {:exit_status, status}} ->
         {:error, {:port_exit, status}}

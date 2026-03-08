@@ -1,9 +1,8 @@
 services:
-  # Coding agent — picks up Todo/In Progress/Merging/Rework tasks
   symphony:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: servo/Dockerfile
     container_name: servo-symphony
     env_file:
       - .env
@@ -16,27 +15,7 @@ services:
       - symphony_codex:/root/.codex
     restart: unless-stopped
 
-  # Review agent — picks up QA Review tasks, validates PRs independently
-  review:
-    build:
-      context: .
-      dockerfile: Dockerfile.review
-    container_name: servo-symphony-review
-    env_file:
-      - .env
-    environment:
-      - GIT_ASKPASS=/app/git-askpass.sh
-      - SYMPHONY_PROJECT_SLUG=${SYMPHONY_PROJECT_SLUG:-}
-    volumes:
-      - review_workspaces:/workspaces-review
-      - review_logs:/app/log
-      - review_codex:/root/.codex
-    restart: unless-stopped
-
 volumes:
   symphony_workspaces:
   symphony_logs:
   symphony_codex:
-  review_workspaces:
-  review_logs:
-  review_codex:

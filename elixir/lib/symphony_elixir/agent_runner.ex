@@ -5,7 +5,7 @@ defmodule SymphonyElixir.AgentRunner do
 
   require Logger
   alias SymphonyElixir.Codex.AppServer
-  alias SymphonyElixir.{Config, Linear.Issue, PromptBuilder, Tracker, Workspace}
+  alias SymphonyElixir.{CommentPoller, Config, Linear.Issue, PromptBuilder, Tracker, Workspace}
 
   @spec run(map(), pid() | nil, keyword()) :: :ok | no_return()
   def run(issue, codex_update_recipient \\ nil, opts \\ []) do
@@ -51,12 +51,40 @@ defmodule SymphonyElixir.AgentRunner do
     issue_state_fetcher = Keyword.get(opts, :issue_state_fetcher, &Tracker.fetch_issue_states_by_ids/1)
 
     with {:ok, session} <- AppServer.start_session(workspace) do
+      # Start polling for live human comments to inject via turn/steer
+      poller_pid = start_comment_poller(issue)
+
       try do
         do_run_codex_turns(session, workspace, issue, codex_update_recipient, opts, issue_state_fetcher, 1, max_turns)
       after
+        stop_comment_poller(poller_pid)
         AppServer.stop_session(session)
       end
     end
+  end
+
+  defp start_comment_poller(%Issue{id: issue_id}) when is_binary(issue_id) do
+    case CommentPoller.start_link(issue_id, self()) do
+      {:ok, pid} ->
+        Logger.info("Started comment poller for #{issue_id}")
+        pid
+
+      _ ->
+        nil
+    end
+  end
+
+  defp start_comment_poller(_issue), do: nil
+
+  defp stop_comment_poller(nil), do: :ok
+
+  defp stop_comment_poller(pid) when is_pid(pid) do
+    if Process.alive?(pid) do
+      Process.unlink(pid)
+      Process.exit(pid, :shutdown)
+    end
+
+    :ok
   end
 
   defp do_run_codex_turns(app_session, workspace, issue, codex_update_recipient, opts, issue_state_fetcher, turn_number, max_turns) do

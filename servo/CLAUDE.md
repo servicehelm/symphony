@@ -63,30 +63,27 @@ cd servo
 docker compose up --build -d
 ```
 
-This starts two agents:
-- **symphony** — coding agent (picks up Todo/In Progress/Merging/Rework)
-- **review** — QA review agent (picks up QA Review, validates PRs with tests + E2E)
+This starts the Symphony agent container which handles all workflow states:
+- Coding (Todo/In Progress/Merging/Rework)
+- QA Review (independent code review)
 
 ## Step 6: Codex Authentication (ChatGPT Subscription)
 
-Both containers need auth. Run device auth for each:
+Run device auth:
 
 ```bash
 docker exec -it servo-symphony codex login --device-auth
-docker exec -it servo-symphony-review codex login --device-auth
 ```
 
-Each outputs a URL and code. Open the URLs in the user's browser using `mcp__claude-in-chrome__navigate`, and tell them to enter the code and authorize with their ChatGPT account.
+This outputs a URL and code. Open the URL in the user's browser using `mcp__claude-in-chrome__navigate`, and tell them to enter the code and authorize with their ChatGPT account.
 
-Then restart both:
+Then restart:
 
 ```bash
 cd servo && docker compose restart
 ```
 
-Codex uses their existing ChatGPT subscription — no extra API costs. OAuth tokens persist in Docker volumes, so they only do this once per container.
-
-> **Alternative (not recommended)**: If they specifically want pay-per-use API billing instead of their subscription, they can add `OPENAI_API_KEY=sk-xxxxx` to `.env` and auth happens automatically.
+Codex uses their existing ChatGPT subscription — no extra API costs. OAuth tokens persist in Docker volumes, so they only do this once.
 
 ## Step 7: Verify
 

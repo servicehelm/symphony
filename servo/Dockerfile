@@ -9,10 +9,8 @@ FROM hexpm/elixir:1.19-erlang-26.2.5.4-debian-bookworm-20260223 AS builder
 
 RUN apt-get update && apt-get install -y git make && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /build
-RUN git clone --depth 1 https://github.com/openai/symphony /build/symphony
-
 WORKDIR /build/symphony/elixir
+COPY elixir/ /build/symphony/elixir/
 RUN mix local.hex --force && mix local.rebar --force
 RUN mix setup
 RUN mix build
@@ -59,8 +57,8 @@ WORKDIR /app
 COPY --from=builder /build/symphony/elixir/bin/symphony /app/bin/symphony
 
 # Copy our config files
-COPY WORKFLOW.md /app/WORKFLOW.md
-COPY git-askpass.sh /app/git-askpass.sh
+COPY servo/WORKFLOW.md /app/WORKFLOW.md
+COPY servo/git-askpass.sh /app/git-askpass.sh
 RUN sed -i 's/\r$//' /app/git-askpass.sh && chmod +x /app/git-askpass.sh
 
 # Git config for the agent
@@ -69,10 +67,10 @@ RUN git config --global user.name "Symphony Agent" \
   && git config --global init.defaultBranch main
 
 # Codex config — set default model
-RUN mkdir -p /root/.codex && echo 'model = "gpt-5.4-2026-03-05"' > /root/.codex/config.toml
+RUN mkdir -p /root/.codex && echo 'model = "gpt-5.4"' > /root/.codex/config.toml
 
 # Codex login script — runs at container start to authenticate with API key
-COPY codex-entrypoint.sh /app/codex-entrypoint.sh
+COPY servo/codex-entrypoint.sh /app/codex-entrypoint.sh
 RUN sed -i 's/\r$//' /app/codex-entrypoint.sh && chmod +x /app/codex-entrypoint.sh
 
 # Workspace and log directories

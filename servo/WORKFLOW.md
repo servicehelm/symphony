@@ -5,6 +5,7 @@ tracker:
   active_states:
     - Todo
     - In Progress
+    - QA Review
     - Merging
     - Rework
   terminal_states:
@@ -23,11 +24,11 @@ hooks:
     git clone --depth 1 https://${GITHUB_TOKEN}@github.com/servicehelm/frontend.git frontend
     git clone --depth 1 https://${GITHUB_TOKEN}@github.com/servicehelm/mobile.git mobile
 
-    cd backend && git remote set-url origin https://${GITHUB_TOKEN}@github.com/servicehelm/backend.git && git submodule update --init --depth 1 && cd ..
+    cd backend && git remote set-url origin https://${GITHUB_TOKEN}@github.com/servicehelm/backend.git && git config submodule.types.url https://${GITHUB_TOKEN}@github.com/servicehelm/types.git && git submodule update --init --depth 1 && cd ..
     cd frontend && git remote set-url origin https://${GITHUB_TOKEN}@github.com/servicehelm/frontend.git && cd ..
     cd mobile && git remote set-url origin https://${GITHUB_TOKEN}@github.com/servicehelm/mobile.git && cd ..
   before_run: |
-    cd backend && git pull origin main && git submodule update --init --depth 1 && cd ..
+    cd backend && git pull origin main && git config submodule.types.url https://${GITHUB_TOKEN}@github.com/servicehelm/types.git && git submodule update --init --depth 1 && cd ..
     cd frontend && git pull origin main && cd ..
     cd mobile && git pull origin main && cd ..
 agent:
@@ -141,7 +142,7 @@ This workspace contains three repos:
 - `Todo` → queued; immediately transition to `In Progress` before active work.
   - Special case: if a PR is already attached, treat as feedback/rework loop.
 - `In Progress` → implementation actively underway.
-- `QA Review` → automated review agent validates the PR. Do nothing; stop.
+- `QA Review` → switch to review mode (Step 5). You are now an independent reviewer.
 - `Human Review` → PR is attached and validated; waiting on human approval.
 - `Merging` → approved by human; merge the PR, move to `Done`.
 - `Rework` → reviewer or QA agent found problems; re-implement.
@@ -156,7 +157,7 @@ This workspace contains three repos:
    - `Todo` → move to `In Progress`, ensure workpad exists, start execution (Step 1).
      - If PR is already attached, start by reviewing all open PR comments.
    - `In Progress` → continue execution from current workpad (Step 1).
-   - `QA Review` → do nothing; the review agent handles this. Stop.
+   - `QA Review` → run QA review flow (Step 5).
    - `Human Review` → poll for review updates (Step 3).
    - `Merging` → merge the PR, move to `Done` (Step 3).
    - `Rework` → run rework flow (Step 4).
@@ -220,6 +221,71 @@ When a ticket has an attached PR, run this before moving to `QA Review`:
 4. Remove the existing `## Codex Workpad` comment.
 5. Create a fresh branch from `origin/main`.
 6. Start over from Step 1 with a new workpad and fresh plan.
+
+## Step 5: QA Review (independent reviewer mode)
+
+When the issue is in `QA Review`, you switch roles. You are now an **independent reviewer** — you did NOT write the code. Your job is qualitative: does the implementation actually solve the problem correctly, and does it follow Servo conventions?
+
+You are NOT a CI system. The coding agent already ran build, tests, and lint. Do not re-run those. Your value is a fresh set of eyes on the code.
+
+### 5.1 Find the PR
+
+```bash
+gh pr list --search "{{ issue.identifier }}" --state open --json number,headRefBranch,url
+```
+
+No PR found → comment "QA Review: no PR found" → move to `Rework` → stop.
+
+### 5.2 Read the diff
+
+```bash
+gh pr diff <pr-number>
+```
+
+Read the entire diff carefully. This is your primary input.
+
+### 5.3 Qualitative review
+
+Answer these questions:
+
+**Does it solve the problem?**
+- Re-read the issue description and acceptance criteria.
+- Does every requirement have corresponding code?
+- Are there edge cases the implementation misses?
+
+**Is it correct?**
+- Trace the logic. Would this actually work at runtime?
+- Are there off-by-one errors, nil pointer risks, or race conditions?
+- For SQL: are queries correct? Do they join properly? Are WHERE clauses right?
+
+**Does it follow Servo conventions?**
+- Typed response structs (not `fiber.Map`)
+- `*audit.AuditDB` for writes with `BeginTxWithAuditContext`
+- `tenant_id` filters on all multi-tenant queries
+- Junction table for relationships (never query `*_ids` directly)
+- `uuidv7` for UUIDs (never `google/uuid`)
+- `response.OK(c, struct)` for success, `httperr.*` for errors
+- Raw SQL in query functions (no query builders)
+
+**Is anything suspicious?**
+- Hardcoded values that should be configurable
+- Security issues (SQL injection, missing auth checks, exposed secrets)
+- Dead code or leftover debug statements
+
+### 5.4 Verdict
+
+Keep your review comment SHORT.
+
+**If the code looks good:**
+1. Comment on the PR: "## QA Review: PASSED" with 1-2 sentences on what you verified.
+2. Move issue to `Human Review`.
+
+**If you find real problems (not nitpicks):**
+1. Try to fix them yourself — push to the PR branch, max 2 fix attempts.
+2. If fixed → comment "QA Review: PASSED (with fixes)" → move to `Human Review`.
+3. If unfixable → comment with specific findings → move to `Rework`.
+
+**What is NOT a blocker:** style preferences, missing comments on simple code, variable naming opinions, "could be refactored" suggestions. Only block on real bugs, missing requirements, or convention violations.
 
 ## Blocked-access escape hatch
 

@@ -27,10 +27,16 @@ hooks:
     cd backend && git remote set-url origin https://${GITHUB_TOKEN}@github.com/servicehelm/backend.git && git config submodule.types.url https://${GITHUB_TOKEN}@github.com/servicehelm/types.git && git submodule update --init --depth 1 && cd ..
     cd frontend && git remote set-url origin https://${GITHUB_TOKEN}@github.com/servicehelm/frontend.git && cd ..
     cd mobile && git remote set-url origin https://${GITHUB_TOKEN}@github.com/servicehelm/mobile.git && cd ..
+
+    cd backend && go mod download && cd ..
+    cd frontend && pnpm install && cd ..
   before_run: |
     cd backend && git pull origin main && git config submodule.types.url https://${GITHUB_TOKEN}@github.com/servicehelm/types.git && git submodule update --init --depth 1 && cd ..
     cd frontend && git pull origin main && cd ..
     cd mobile && git pull origin main && cd ..
+
+    cd backend && go mod download && cd ..
+    cd frontend && pnpm install && cd ..
 agent:
   max_concurrent_agents: 2
   max_turns: 20

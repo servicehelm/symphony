@@ -34,6 +34,8 @@ RUN curl -fsSL https://go.dev/dl/go1.24.1.linux-amd64.tar.gz | tar -C /usr/local
 ENV PATH="/usr/local/go/bin:${PATH}"
 ENV GOPATH="/root/go"
 ENV PATH="${GOPATH}/bin:${PATH}"
+RUN ln -s /usr/local/go/bin/go /usr/local/bin/go \
+ && ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt
 
 # Install Node.js 22 (for Codex CLI + frontend)
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \

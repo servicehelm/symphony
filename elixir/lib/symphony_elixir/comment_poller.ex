@@ -62,11 +62,15 @@ defmodule SymphonyElixir.CommentPoller do
 
     case comment_fetcher.(issue_id) do
       {:ok, comments} ->
-        # Find new non-bot comments (is_me=false means it's not the API key owner, i.e. it's a human)
+        Logger.debug("CommentPoller: fetched #{length(comments)} comments for #{issue_id}, #{MapSet.size(known_ids)} known")
+        # Find new comments that weren't made by the agent itself.
+        # We can't use is_me because the user's personal API key owns both
+        # human UI comments and agent API comments. Instead, filter out
+        # comments that look like agent workpad updates.
         new_comments =
           comments
           |> Enum.reject(fn c -> MapSet.member?(known_ids, c.id) end)
-          |> Enum.reject(fn c -> c.is_me end)
+          |> Enum.reject(fn c -> agent_comment?(c.body) end)
           |> Enum.sort_by(& &1.created_at)
 
         {updated_known, updated_counter} =
@@ -83,6 +87,16 @@ defmodule SymphonyElixir.CommentPoller do
         Logger.warning("CommentPoller: failed to fetch comments for #{issue_id}: #{inspect(reason)}")
         poll_loop(issue_id, turn_owner_pid, known_ids, steer_counter, interval, comment_fetcher)
     end
+  end
+
+  # Agent-generated comments contain workpad markers or status prefixes.
+  # Human comments from the Linear UI won't have these.
+  defp agent_comment?(nil), do: false
+
+  defp agent_comment?(body) when is_binary(body) do
+    String.contains?(body, "## Codex Workpad") or
+      String.contains?(body, "symphony-agent:") or
+      String.starts_with?(String.trim(body), "QA Review:")
   end
 
   defp format_steer_message(comment) do

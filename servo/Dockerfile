@@ -26,12 +26,24 @@ RUN apt-get update && apt-get install -y \
   openssh-client \
   ca-certificates \
   gnupg \
+  make \
+  gcc \
+  libc6-dev \
   && rm -rf /var/lib/apt/lists/*
 
-# Install Node.js 22 (for Codex CLI)
+# Install Go (for backend build/lint/test)
+RUN curl -fsSL https://go.dev/dl/go1.24.1.linux-amd64.tar.gz | tar -C /usr/local -xzf -
+ENV PATH="/usr/local/go/bin:${PATH}"
+ENV GOPATH="/root/go"
+ENV PATH="${GOPATH}/bin:${PATH}"
+
+# Install Node.js 22 (for Codex CLI + frontend)
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
   && apt-get install -y nodejs \
   && rm -rf /var/lib/apt/lists/*
+
+# Install pnpm (for frontend)
+RUN npm install -g pnpm
 
 # Install OpenAI Codex CLI
 RUN npm install -g @openai/codex

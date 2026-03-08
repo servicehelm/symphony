@@ -14,14 +14,14 @@ if [ -n "${SYMPHONY_PROJECT_SLUG:-}" ]; then
   echo "[entrypoint] Project slug set to: ${SYMPHONY_PROJECT_SLUG}"
 fi
 
-# ── Codex auth ────────────────────────────────────────────────
-# Option 1: API key in env → auto-login
-if [ -z "$(find /root/.codex -name 'auth.json' 2>/dev/null)" ] && [ -n "${OPENAI_API_KEY:-}" ]; then
-  echo "[entrypoint] No auth.json found, logging in with OPENAI_API_KEY..."
-  echo "$OPENAI_API_KEY" | codex login --with-api-key
+# ── Codex auth (OAuth only — no API keys) ─────────────────────
+# Reject API key auth to prevent accidental quota billing
+if [ -n "${OPENAI_API_KEY:-}" ]; then
+  echo "[entrypoint] WARNING: OPENAI_API_KEY is set but API key auth is disabled."
+  echo "[entrypoint] Remove OPENAI_API_KEY from .env and use device-auth instead."
 fi
 
-# Option 2: Neither API key nor OAuth token → wait for manual device auth
+# Require OAuth device auth (ChatGPT subscription)
 if [ ! -f /root/.codex/auth.json ]; then
   echo ""
   echo "╔══════════════════════════════════════════════════════════╗"

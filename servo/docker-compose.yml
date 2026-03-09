@@ -9,13 +9,59 @@ services:
     environment:
       - GIT_ASKPASS=/app/git-askpass.sh
       - SYMPHONY_PROJECT_SLUG=${SYMPHONY_PROJECT_SLUG:-}
+      # Tell backend Makefile to skip Docker detection (services are sidecar containers)
+      - CI=true
+      # Database URLs for backend make test / make run
+      - DATABASE_URL=postgres://servo:servo_dev@postgres:5432/servo?sslmode=disable
+      - TEST_DATABASE_URL=postgres://servo:servo_dev@postgres:5432/servo_test?sslmode=disable
+      - TEST_DATABASE_URL_DIRECT=postgres://servo:servo_dev@postgres:5432/servo_test?sslmode=disable
+      - TEST_ATLAS_DEV_URL=postgres://servo:servo_dev@postgres:5432/servo_test?sslmode=disable
+      - DEVELOPMENT_DATABASE_URL=postgres://servo:servo_dev@postgres:5432/servo?sslmode=disable
+      - REDIS_URL=redis://redis:6379
+      - TEST_REDIS_URL=redis://redis:6379
+      - DEVELOPMENT_REDIS_URL=redis://redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     volumes:
       - symphony_workspaces:/workspaces
       - symphony_logs:/app/log
       - symphony_codex:/root/.codex
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: postgis/postgis:17-3.4
+    container_name: servo-symphony-postgres
+    environment:
+      POSTGRES_USER: servo
+      POSTGRES_PASSWORD: servo_dev
+      POSTGRES_DB: servo
+    volumes:
+      - symphony_postgres:/var/lib/postgresql/data
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U servo -d servo"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: servo-symphony-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     restart: unless-stopped
 
 volumes:
   symphony_workspaces:
   symphony_logs:
   symphony_codex:
+  symphony_postgres:

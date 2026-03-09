@@ -19,24 +19,62 @@ polling:
 workspace:
   root: /workspaces
 hooks:
+  timeout_ms: 120000
   after_create: |
+    export PATH="/usr/local/go/bin:/root/go/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+
     git clone --depth 1 https://${GITHUB_TOKEN}@github.com/servicehelm/backend.git backend
     git clone --depth 1 https://${GITHUB_TOKEN}@github.com/servicehelm/frontend.git frontend
     git clone --depth 1 https://${GITHUB_TOKEN}@github.com/servicehelm/mobile.git mobile
 
     cd backend && git remote set-url origin https://${GITHUB_TOKEN}@github.com/servicehelm/backend.git && git config submodule.types.url https://${GITHUB_TOKEN}@github.com/servicehelm/types.git && git submodule update --init --depth 1 && cd ..
-    cd frontend && git remote set-url origin https://${GITHUB_TOKEN}@github.com/servicehelm/frontend.git && cd ..
+    cd frontend && git remote set-url origin https://${GITHUB_TOKEN}@github.com/servicehelm/frontend.git && git config submodule.types.url https://${GITHUB_TOKEN}@github.com/servicehelm/types.git && git submodule update --init --depth 1 && cd ..
     cd mobile && git remote set-url origin https://${GITHUB_TOKEN}@github.com/servicehelm/mobile.git && cd ..
 
     cd backend && go mod download && cd ..
     cd frontend && pnpm install && cd ..
+
+    # Write backend .env so make test/run can find database and redis
+    echo "ENV=development" > backend/.env
+    echo "PORT=8080" >> backend/.env
+    echo "HOST=0.0.0.0" >> backend/.env
+    echo "DATABASE_URL=${DATABASE_URL}" >> backend/.env
+    echo "TEST_DATABASE_URL=${TEST_DATABASE_URL}" >> backend/.env
+    echo "TEST_DATABASE_URL_DIRECT=${TEST_DATABASE_URL_DIRECT}" >> backend/.env
+    echo "TEST_ATLAS_DEV_URL=${TEST_ATLAS_DEV_URL}" >> backend/.env
+    echo "DEVELOPMENT_DATABASE_URL=${DEVELOPMENT_DATABASE_URL}" >> backend/.env
+    echo "REDIS_URL=${REDIS_URL}" >> backend/.env
+    echo "TEST_REDIS_URL=${TEST_REDIS_URL}" >> backend/.env
+    echo "DEVELOPMENT_REDIS_URL=${DEVELOPMENT_REDIS_URL}" >> backend/.env
+    echo "REDIS_HOST=${REDIS_HOST}" >> backend/.env
+    echo "REDIS_PORT=${REDIS_PORT}" >> backend/.env
+
+    # Create test database if it doesn't exist
+    PGPASSWORD=servo_dev psql -h postgres -U servo -d servo -tc "SELECT 1 FROM pg_database WHERE datname = 'servo_test'" | grep -q 1 || PGPASSWORD=servo_dev psql -h postgres -U servo -d servo -c "CREATE DATABASE servo_test"
   before_run: |
+    export PATH="/usr/local/go/bin:/root/go/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+
     cd backend && git pull origin main && git config submodule.types.url https://${GITHUB_TOKEN}@github.com/servicehelm/types.git && git submodule update --init --depth 1 && cd ..
-    cd frontend && git pull origin main && cd ..
+    cd frontend && git pull origin main && git config submodule.types.url https://${GITHUB_TOKEN}@github.com/servicehelm/types.git && git submodule update --init --depth 1 && cd ..
     cd mobile && git pull origin main && cd ..
 
     cd backend && go mod download && cd ..
     cd frontend && pnpm install && cd ..
+
+    # Refresh backend .env
+    echo "ENV=development" > backend/.env
+    echo "PORT=8080" >> backend/.env
+    echo "HOST=0.0.0.0" >> backend/.env
+    echo "DATABASE_URL=${DATABASE_URL}" >> backend/.env
+    echo "TEST_DATABASE_URL=${TEST_DATABASE_URL}" >> backend/.env
+    echo "TEST_DATABASE_URL_DIRECT=${TEST_DATABASE_URL_DIRECT}" >> backend/.env
+    echo "TEST_ATLAS_DEV_URL=${TEST_ATLAS_DEV_URL}" >> backend/.env
+    echo "DEVELOPMENT_DATABASE_URL=${DEVELOPMENT_DATABASE_URL}" >> backend/.env
+    echo "REDIS_URL=${REDIS_URL}" >> backend/.env
+    echo "TEST_REDIS_URL=${TEST_REDIS_URL}" >> backend/.env
+    echo "DEVELOPMENT_REDIS_URL=${DEVELOPMENT_REDIS_URL}" >> backend/.env
+    echo "REDIS_HOST=${REDIS_HOST}" >> backend/.env
+    echo "REDIS_PORT=${REDIS_PORT}" >> backend/.env
 agent:
   max_concurrent_agents: 2
   max_turns: 20
@@ -113,6 +151,23 @@ This workspace contains three repos:
 - Full-stack tasks: implement backend changes first, then frontend, then mobile if needed.
 - Each repo that has changes needs its own branch and PR.
 - Use conventional branch naming: `symphony/{{ issue.identifier }}` (lowercase).
+
+## Development Servers
+
+When you need to verify full-stack behavior (e.g., testing API integration, debugging frontend-backend interactions), start both dev servers concurrently.
+
+**IMPORTANT:** Do NOT use `make run` or `make dev` — those targets try to manage Docker containers which are not available inside this workspace. Use direct commands instead:
+
+- **Backend**: `cd backend && go run cmd/main.go &` (Go Fiber server on port 8080, runs in background)
+- **Frontend**: `cd frontend && pnpm dev &` (Next.js dev server on port 3000, runs in background)
+
+Tips:
+- The backend `.env` is pre-configured with database and Redis connection URLs. Do not override them.
+- Start backend first — frontend may depend on API endpoints.
+- Use `curl` or `wget` to smoke-test backend endpoints before relying on frontend.
+- Kill background servers when done: `kill %1 %2` or `pkill -f "go run"` / `pkill -f "next dev"`.
+- If the backend fails to start due to missing migrations, run: `cd backend && atlas migrate apply --env test --allow-dirty --exec-order=non-linear`
+- The workspace has PostgreSQL (at hostname `postgres:5432`) and Redis (at hostname `redis:6379`) available as sidecar services. They are NOT on localhost.
 
 ## Backend Conventions (Go)
 

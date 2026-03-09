@@ -2,10 +2,8 @@
 set -euo pipefail
 
 # ── Codex config ──────────────────────────────────────────────
-if [ ! -f /root/.codex/config.toml ]; then
-  mkdir -p /root/.codex
-  echo 'model = "gpt-5.4"' > /root/.codex/config.toml
-fi
+mkdir -p /root/.codex
+echo 'model = "gpt-5.4"' > /root/.codex/config.toml
 
 # ── Template WORKFLOW.md with env vars ────────────────────────
 # Replace placeholder with env var so each user can set their own project slug

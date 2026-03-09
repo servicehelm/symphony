@@ -27,6 +27,10 @@ RUN apt-get update && apt-get install -y \
   make \
   gcc \
   libc6-dev \
+  lsof \
+  jq \
+  postgresql-client \
+  redis-tools \
   && rm -rf /var/lib/apt/lists/*
 
 # Install Go (for backend build/lint/test)
@@ -34,8 +38,20 @@ RUN curl -fsSL https://go.dev/dl/go1.24.1.linux-amd64.tar.gz | tar -C /usr/local
 ENV PATH="/usr/local/go/bin:${PATH}"
 ENV GOPATH="/root/go"
 ENV PATH="${GOPATH}/bin:${PATH}"
-RUN ln -s /usr/local/go/bin/go /usr/local/bin/go \
- && ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt
+# Symlinks in multiple locations so Go is found regardless of PATH config
+RUN ln -sf /usr/local/go/bin/go /usr/local/bin/go \
+ && ln -sf /usr/local/go/bin/gofmt /usr/local/bin/gofmt \
+ && ln -sf /usr/local/go/bin/go /usr/bin/go \
+ && ln -sf /usr/local/go/bin/gofmt /usr/bin/gofmt
+# Ensure PATH is set for all shell sessions (login, non-login, Codex sandbox)
+RUN echo 'export PATH="/usr/local/go/bin:/root/go/bin:$PATH"' > /etc/profile.d/go-path.sh \
+ && echo 'export GOPATH="/root/go"' >> /etc/profile.d/go-path.sh \
+ && chmod +x /etc/profile.d/go-path.sh \
+ && echo 'export PATH="/usr/local/go/bin:/root/go/bin:$PATH"' >> /root/.bashrc \
+ && echo 'export GOPATH="/root/go"' >> /root/.bashrc
+
+# Install Atlas CLI (for database migrations in backend tests)
+RUN curl -fsSL https://atlasgo.sh | sh
 
 # Install Node.js 22 (for Codex CLI + frontend)
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \

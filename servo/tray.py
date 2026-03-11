@@ -72,7 +72,7 @@ def make_icon(active: int, error: bool = False) -> Image.Image:
     elif active > 0:
         color = (50, 200, 80)
     else:
-        color = (140, 140, 140)
+        color = (220, 180, 40)
 
     # Filled circle
     draw.ellipse([4, 4, size - 4, size - 4], fill=color)
@@ -137,6 +137,7 @@ def restart_containers(_):
 
 
 def stop_containers(icon, _):
+    _stop_event.set()
     subprocess.Popen(
         ["docker", "compose", "stop"],
         cwd=COMPOSE_DIR,
@@ -144,13 +145,19 @@ def stop_containers(icon, _):
     icon.stop()
 
 
-def poll_loop(icon: pystray.Icon):
+_stop_event = threading.Event()
+
+
+def poll_loop(icon: pystray.Icon, stop_event: threading.Event):
     """Background thread that updates the icon and tooltip."""
-    while icon.visible:
-        status = get_status()
-        icon.icon = make_icon(status["active"], status.get("error", False))
-        icon.title = build_tooltip(status)
-        time.sleep(POLL_INTERVAL)
+    while not stop_event.is_set():
+        try:
+            status = get_status()
+            icon.icon = make_icon(status["active"], status.get("error", False))
+            icon.title = build_tooltip(status)
+        except Exception:
+            pass  # don't let a bad poll kill the loop
+        stop_event.wait(POLL_INTERVAL)
 
 
 def main():
@@ -168,7 +175,7 @@ def main():
         ),
     )
 
-    poll_thread = threading.Thread(target=poll_loop, args=(icon,), daemon=True)
+    poll_thread = threading.Thread(target=poll_loop, args=(icon, _stop_event), daemon=True)
     poll_thread.start()
     icon.run()
 

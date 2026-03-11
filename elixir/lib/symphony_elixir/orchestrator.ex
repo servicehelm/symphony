@@ -8,6 +8,7 @@ defmodule SymphonyElixir.Orchestrator do
   import Bitwise, only: [<<<: 2]
 
   alias SymphonyElixir.{AgentRunner, Config, StatusDashboard, Tracker, Workspace}
+  alias SymphonyElixir.GitHub
   alias SymphonyElixir.Linear.Issue
 
   @continuation_retry_delay_ms 1_000
@@ -78,6 +79,7 @@ defmodule SymphonyElixir.Orchestrator do
   def handle_info(:run_poll_cycle, state) do
     state = refresh_runtime_config(state)
     state = maybe_dispatch(state)
+    check_merged_prs()
     now_ms = System.monotonic_time(:millisecond)
     next_poll_due_at_ms = now_ms + state.poll_interval_ms
     :ok = schedule_tick(state.poll_interval_ms)
@@ -168,6 +170,21 @@ defmodule SymphonyElixir.Orchestrator do
   def handle_info(msg, state) do
     Logger.debug("Orchestrator ignored message: #{inspect(msg)}")
     {:noreply, state}
+  end
+
+  defp check_merged_prs do
+    case Tracker.fetch_issues_by_states(["Human Review"]) do
+      {:ok, issues} ->
+        Enum.each(issues, fn %Issue{id: id, identifier: identifier} ->
+          if GitHub.Client.work_merged?(identifier) do
+            Logger.info("PR merged for #{identifier}; moving to Done")
+            Tracker.update_issue_state(id, "Done")
+          end
+        end)
+
+      {:error, reason} ->
+        Logger.debug("Failed to fetch Human Review issues for merge check: #{inspect(reason)}")
+    end
   end
 
   defp maybe_dispatch(%State{} = state) do
